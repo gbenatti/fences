@@ -1,7 +1,9 @@
 import 'package:backdrop/app_bar.dart';
 import 'package:backdrop/scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geofence_service/geofence_service.dart';
+import 'package:flutter_beep/flutter_beep.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,6 +39,7 @@ class _MyAppState extends State<MyApp> {
         allowMockLocations: false,
         printDevLog: false,
         geofenceRadiusSortType: GeofenceRadiusSortType.DESC);
+    _geofenceService?.start([]).catchError(_onError);
   }
 
   void _hookupListeners() {
@@ -156,18 +159,38 @@ class _MyAppState extends State<MyApp> {
         iosNotificationOptions: const IOSNotificationOptions(),
         notificationTitle: 'Geofence Service is running',
         notificationText: 'Tap to return to the app',
-        child: MyHomePage(title: 'Geofences', messages: _messages, add: _addGeofences),
+        child: MyHomePage(
+            title: 'Geofences',
+            messages: _messages,
+            add: _addGeofenceToService),
       ),
     );
+  }
+
+  void _addGeofenceToService(String name, double lat, double long) {
+    final geofence = Geofence(
+      id: name,
+      latitude: lat,
+      longitude: long,
+      radius: [
+        GeofenceRadius(id: 'radius_1000m', length: 1000),
+      ],
+    );
+
+    _geofenceService?.addGeofence(geofence);
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title, required this.messages, required this.add})
+  const MyHomePage(
+      {Key? key,
+      required this.title,
+      required this.messages,
+      required this.add})
       : super(key: key);
   final String title;
   final List<String> messages;
-  final Function add;
+  final Function(String, double, double) add;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -180,14 +203,20 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: BackdropAppBar(
         title: Text(widget.title),
         actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: () {
-            widget.add();
-
-          }),
+          IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () async {
+                final result = await _addGeofence();
+                if (result != null) {
+                  _addGeofenceToService(result);
+                }
+              }),
         ],
       ),
       backLayer: const GeofencesList(),
       frontLayer: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+        reverse: true,
         itemCount: widget.messages.length,
         itemBuilder: (context, index) => ListTile(
           leading: _getIcon(widget.messages[index]),
@@ -199,6 +228,60 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  Future<Map<String, String>?> _addGeofence() {
+    final nameController = TextEditingController();
+    final latController = TextEditingController();
+    final longController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false, // user must tap button!
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('AlertDialog Title'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Local"),
+                ),
+                TextField(
+                  controller: latController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "Latitude"),
+                ),
+                TextField(
+                  controller: longController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "Longitude"),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Cancel"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Add'),
+              onPressed: () {
+                Navigator.of(context).pop({
+                  "name": nameController.text,
+                  "lat": latController.text,
+                  "long": longController.text,
+                });
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget? _getIcon(String message) {
     final parts = message.split(":");
     if (parts.length == 1) {
@@ -207,6 +290,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     switch (parts[0].toLowerCase()) {
       case "geofence":
+        processGeofence(parts);
         return const Icon(Icons.explore);
       case "location":
         return const Icon(Icons.location_on);
@@ -214,6 +298,20 @@ class _MyHomePageState extends State<MyHomePage> {
         return const Icon(Icons.electric_scooter);
       default:
         return null;
+    }
+  }
+
+  void processGeofence(List<String> parts) {
+    FlutterBeep.beep();
+  }
+
+  void _addGeofenceToService(Map<String, String> result) {
+    if (result["lat"] != null && result["long"] != null) {
+      final name = result["name"] ?? "place";
+      final lat = double.parse(result["lat"]!);
+      final long = double.parse(result["lat"]!);
+
+      widget.add(name, lat, long);
     }
   }
 }
