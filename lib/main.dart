@@ -1,3 +1,5 @@
+import 'package:backdrop/app_bar.dart';
+import 'package:backdrop/scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:geofence_service/geofence_service.dart';
 
@@ -21,7 +23,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _startGeofenceService();
     _hookupListeners();
-    _addGeofences();
+//    _addGeofences();
   }
 
   void _startGeofenceService() {
@@ -154,23 +156,18 @@ class _MyAppState extends State<MyApp> {
         iosNotificationOptions: const IOSNotificationOptions(),
         notificationTitle: 'Geofence Service is running',
         notificationText: 'Tap to return to the app',
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Geofence Service'),
-            centerTitle: true,
-          ),
-          body: MyHomePage(title: 'Geofences', messages: _messages),
-        ),
+        child: MyHomePage(title: 'Geofences', messages: _messages, add: _addGeofences),
       ),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title, required this.messages})
+  const MyHomePage({Key? key, required this.title, required this.messages, required this.add})
       : super(key: key);
   final String title;
   final List<String> messages;
+  final Function add;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -179,11 +176,18 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return BackdropScaffold(
+      appBar: BackdropAppBar(
         title: Text(widget.title),
+        actions: [
+          IconButton(icon: const Icon(Icons.add), onPressed: () {
+            widget.add();
+
+          }),
+        ],
       ),
-      body: ListView.separated(
+      backLayer: const GeofencesList(),
+      frontLayer: ListView.separated(
         itemCount: widget.messages.length,
         itemBuilder: (context, index) => ListTile(
           leading: _getIcon(widget.messages[index]),
@@ -211,5 +215,16 @@ class _MyHomePageState extends State<MyHomePage> {
       default:
         return null;
     }
+  }
+}
+
+class GeofencesList extends StatelessWidget {
+  const GeofencesList({
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: Text("background"));
   }
 }
