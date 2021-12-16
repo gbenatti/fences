@@ -178,6 +178,7 @@ class _MyAppState extends State<MyApp> {
     );
 
     _geofenceService?.addGeofence(geofence);
+    _print("Added geofence $name at lat: $lat, long: $long");
   }
 }
 
@@ -309,7 +310,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (result["lat"] != null && result["long"] != null) {
       final name = result["name"] ?? "place";
       final lat = double.parse(result["lat"]!);
-      final long = double.parse(result["lat"]!);
+      final long = double.parse(result["long"]!);
 
       widget.add(name, lat, long);
     }
