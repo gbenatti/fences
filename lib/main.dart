@@ -3,9 +3,15 @@ import 'package:backdrop/scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geofence_service/geofence_service.dart';
-import 'package:flutter_beep/flutter_beep.dart';
+import 'package:soundpool/soundpool.dart';
 
-void main() {
+
+    // cx = @-23.5976395,-46.6870598
+    // home = @-23.5314532,-46.545045
+
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -18,6 +24,10 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   GeofenceService? _geofenceService;
+  Soundpool? _pool;
+  int? soundId = -1;
+  SoundpoolOptions _soundpoolOptions = SoundpoolOptions();
+
   final List<String> _messages = List.empty(growable: true);
 
   @override
@@ -25,7 +35,23 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _startGeofenceService();
     _hookupListeners();
-//    _addGeofences();
+    _loadSound();
+  }
+
+  Future<void> _loadSound() async {
+    _pool = Soundpool.fromOptions(options: _soundpoolOptions);
+    var asset = await rootBundle.load("assets/alarm.mp3");
+    soundId = await _pool?.load(asset);
+
+    _addGeofenceToService("cx", -23.5976395, -46.6870598);
+    _addGeofenceToService("home", -23.5314532, -46.545045);
+  }
+
+  Future<void> playAlarm() async {
+    _print("Play alarm $soundId");
+    if (soundId != null) {
+      await _pool?.play(soundId!);
+    }
   }
 
   void _startGeofenceService() {
@@ -54,37 +80,6 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _addGeofences() {
-    _print("Add geofences");
-
-    // cx = @-23.5976395,-46.6870598
-    // home = @-23.5314532,-46.545045
-    final _geofenceList = <Geofence>[
-      Geofence(
-        id: 'cx',
-        latitude: -23.5976395,
-        longitude: -46.6870598,
-        radius: [
-          GeofenceRadius(id: 'radius_100m', length: 100),
-          GeofenceRadius(id: 'radius_25m', length: 25),
-          GeofenceRadius(id: 'radius_250m', length: 250),
-          GeofenceRadius(id: 'radius_1000m', length: 1000),
-        ],
-      ),
-      Geofence(
-        id: 'home',
-        latitude: -23.5314532,
-        longitude: -46.545045,
-        radius: [
-          GeofenceRadius(id: 'radius_25m', length: 25),
-          GeofenceRadius(id: 'radius_100m', length: 100),
-          GeofenceRadius(id: 'radius_1000m', length: 1000),
-        ],
-      ),
-    ];
-    _geofenceService?.start(_geofenceList).catchError(_onError);
-  }
-
   // This function is to be called when the geofence status is changed.
   Future<void> _onGeofenceStatusChanged(
       Geofence geofence,
@@ -94,6 +89,14 @@ class _MyAppState extends State<MyApp> {
     _print('geofence: ${geofence.toJson()}');
     _print('geofenceRadius: ${geofenceRadius.toJson()}');
     _print('geofenceStatus: ${geofenceStatus.toString()}');
+
+    if (_shouldPlay(geofence)) {
+      await playAlarm();
+    }
+  }
+
+  bool _shouldPlay(Geofence geofence) {
+    return geofence.status == GeofenceStatus.ENTER;
   }
 
   // This function is to be called when the activity has changed.
@@ -147,7 +150,7 @@ class _MyAppState extends State<MyApp> {
           // You can add a foreground task start condition.
           return _geofenceService?.isRunningService ?? false;
         },
-        androidNotificationOptions: const AndroidNotificationOptions(
+        androidNotificationOptions: AndroidNotificationOptions(
           channelId: 'geofence_service_notification_channel',
           channelName: 'Geofence Service Notification',
           channelDescription:
@@ -197,7 +200,7 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> {  
   @override
   Widget build(BuildContext context) {
     return BackdropScaffold(
@@ -233,6 +236,8 @@ class _MyHomePageState extends State<MyHomePage> {
     final nameController = TextEditingController();
     final latController = TextEditingController();
     final longController = TextEditingController();
+
+    // playAlarm();
 
     return showDialog<Map<String, String>>(
       context: context,
@@ -291,7 +296,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
     switch (parts[0].toLowerCase()) {
       case "geofence":
-        processGeofence(parts);
         return const Icon(Icons.explore);
       case "location":
         return const Icon(Icons.location_on);
@@ -300,10 +304,6 @@ class _MyHomePageState extends State<MyHomePage> {
       default:
         return null;
     }
-  }
-
-  void processGeofence(List<String> parts) {
-    FlutterBeep.beep();
   }
 
   void _addGeofenceToService(Map<String, String> result) {
